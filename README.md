@@ -9,6 +9,7 @@ Manual current-conversation group analysis plugin for ElymBot Plugin v2.
 - `/群分析-帮助`: show command list
 - `/群分析-完整`: full report
 - `/群分析-统计`: local statistics only, no LLM call
+- `/群分析-诊断`: show the host history payload counts and sample fields
 - `/群分析-话题`: topic analysis
 - `/群分析-金句`: quote extraction
 - `/群分析-用户`: user style analysis

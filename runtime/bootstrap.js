@@ -18,6 +18,12 @@ const COMMANDS = [
     description: "输出基础统计",
   },
   {
+    command: "群分析-诊断",
+    key: "elymbot-group-analysis.diagnose",
+    mode: "diagnose",
+    description: "检查宿主历史返回情况",
+  },
+  {
     command: "群分析-话题",
     key: "elymbot-group-analysis.topics",
     mode: "topics",
@@ -128,7 +134,7 @@ function extractCommandAction(event) {
 }
 
 function extractAction(event) {
-  const allowed = ["帮助", "完整", "统计", "话题", "金句", "用户", "质量"];
+  const allowed = ["帮助", "完整", "统计", "诊断", "话题", "金句", "用户", "质量"];
   if (event && Array.isArray(event.groups)) {
     for (const group of event.groups) {
       const value = String(group || "").trim();
@@ -144,7 +150,7 @@ function extractAction(event) {
   }
 
   const raw = extractEventText(event || "");
-  const match = raw.match(/群分析[-－](帮助|完整|统计|话题|金句|用户|质量)/);
+  const match = raw.match(/群分析[-－](帮助|完整|统计|诊断|话题|金句|用户|质量)/);
   return match ? match[1] : "帮助";
 }
 
@@ -159,17 +165,17 @@ function extractActionFromText(text) {
     return "帮助";
   }
 
-  let match = normalized.match(/^群分析[-－](帮助|完整|统计|话题|金句|用户|质量)(?:\s|$)/);
+  let match = normalized.match(/^群分析[-－](帮助|完整|统计|诊断|话题|金句|用户|质量)(?:\s|$)/);
   if (match) {
     return match[1];
   }
 
-  match = normalized.match(/^群分析\s+(帮助|完整|统计|话题|金句|用户|质量)(?:\s|$)/);
+  match = normalized.match(/^群分析\s+(帮助|完整|统计|诊断|话题|金句|用户|质量)(?:\s|$)/);
   if (match) {
     return match[1];
   }
 
-  match = raw.match(/(?:^|[\s\]])\/?群分析(?:[-－\s]+(帮助|完整|统计|话题|金句|用户|质量))?(?=$|\s)/);
+  match = raw.match(/(?:^|[\s\]])\/?群分析(?:[-－\s]+(帮助|完整|统计|诊断|话题|金句|用户|质量))?(?=$|\s)/);
   if (match) {
     return match[1] || "帮助";
   }
@@ -182,6 +188,7 @@ function modeFromAction(action) {
     "帮助": "help",
     "完整": "full",
     "统计": "stats",
+    "诊断": "diagnose",
     "话题": "topics",
     "金句": "quotes",
     "用户": "users",
@@ -204,17 +211,17 @@ async function handleCommand(hostApi, event, mode) {
   }
 
   const messages = normalizeMessages(history.records);
-  const validMessages = messages.filter((msg) => {
-    const text = msg.text.trim();
-    return text && !text.startsWith("/群分析-");
-  });
+  const commandMessages = messages.filter((msg) => isAnalysisCommandText(msg.text));
+  const validMessages = messages.filter((msg) => msg.text.trim() && !isAnalysisCommandText(msg.text));
+  const diagnostics = buildHistoryDiagnostics(history, messages, validMessages, commandMessages);
+
+  if (mode === "diagnose") {
+    await safeReply(hostApi, event, renderDiagnosticsReport(diagnostics, settings));
+    return;
+  }
 
   if (validMessages.length < settings.min_messages) {
-    await safeReply(
-      hostApi,
-      event,
-      `当前会话可分析消息不足：有效 ${validMessages.length} 条，至少需要 ${settings.min_messages} 条。`
-    );
+    await safeReply(hostApi, event, renderInsufficientReport(diagnostics, settings));
     return;
   }
 
@@ -272,6 +279,7 @@ function buildHelpText() {
     "/群分析：显示本帮助",
     "/群分析-完整：完整分析最近消息",
     "/群分析-统计：只看基础统计",
+    "/群分析-诊断：检查宿主历史返回情况",
     "/群分析-话题：分析热门话题",
     "/群分析-金句：提取金句",
     "/群分析-用户：分析用户风格",
@@ -325,7 +333,11 @@ async function loadHistory(hostApi, limit) {
   if (!records) {
     return { ok: false, error: "历史消息返回格式无法识别" };
   }
-  return { ok: true, records };
+  return {
+    ok: true,
+    conversationId: firstString(result, ["conversationId", "conversation_id"]),
+    records,
+  };
 }
 
 async function resolveModel(hostApi, event) {
@@ -427,6 +439,62 @@ function normalizeMessages(records) {
       };
     })
     .filter((msg) => msg.text);
+}
+
+function isAnalysisCommandText(text) {
+  const value = String(text || "").trim();
+  return value === "/群分析" || value.startsWith("/群分析 ") || value.startsWith("/群分析-");
+}
+
+function buildHistoryDiagnostics(history, messages, validMessages, commandMessages) {
+  const records = Array.isArray(history.records) ? history.records : [];
+  const samples = records.slice(0, 3).map((record, index) => {
+    const text = extractText(record).replace(/\s+/g, " ").trim();
+    const keys = record && typeof record === "object"
+      ? Object.keys(record).slice(0, 10).join(",")
+      : typeof record;
+    return {
+      index: index + 1,
+      keys,
+      textLength: text.length,
+      preview: truncate(text || "<空>", 48),
+    };
+  });
+  return {
+    conversationId: history.conversationId || "",
+    returnedCount: records.length,
+    recognizedTextCount: messages.length,
+    commandCount: commandMessages.length,
+    validCount: validMessages.length,
+    samples,
+  };
+}
+
+function renderInsufficientReport(diagnostics, settings) {
+  return [
+    `当前会话可分析消息不足：有效 ${diagnostics.validCount} 条，至少需要 ${settings.min_messages} 条。`,
+    "",
+    renderDiagnosticsReport(diagnostics, settings),
+  ].join("\n");
+}
+
+function renderDiagnosticsReport(diagnostics, settings) {
+  const sampleText = diagnostics.samples.length
+    ? diagnostics.samples
+        .map((item) => `${item.index}. keys=${item.keys || "-"} textLen=${item.textLength} text=${item.preview}`)
+        .join("\n")
+    : "无";
+  return [
+    "群分析诊断：",
+    `请求上限：${settings.history_limit}`,
+    `宿主会话：${diagnostics.conversationId || "未返回"}`,
+    `宿主返回：${diagnostics.returnedCount} 条`,
+    `可识别文本：${diagnostics.recognizedTextCount} 条`,
+    `指令过滤：${diagnostics.commandCount} 条`,
+    `有效消息：${diagnostics.validCount} 条`,
+    "样本：",
+    sampleText,
+  ].join("\n");
 }
 
 function buildStats(messages) {
@@ -588,6 +656,14 @@ function extractText(value) {
     }
   }
   return "";
+}
+
+function truncate(value, maxLength) {
+  const text = String(value || "");
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, Math.max(0, maxLength - 1))}…`;
 }
 
 function firstString(obj, keys) {
