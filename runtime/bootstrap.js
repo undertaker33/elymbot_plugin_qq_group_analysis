@@ -76,7 +76,7 @@ export default async function bootstrap(hostApi) {
         hostApi.log("ERROR", "[elymbot-group-analysis] root command failed", {
           message: String(error && error.message ? error.message : error),
         });
-        event.replyText(`群分析失败：${String(error && error.message ? error.message : error)}`);
+        await safeReply(hostApi, event, `群分析失败：${String(error && error.message ? error.message : error)}`);
       }
     },
   });
@@ -99,7 +99,7 @@ export default async function bootstrap(hostApi) {
             command: item.command,
             message: String(error && error.message ? error.message : error),
           });
-          event.replyText(`群分析失败：${String(error && error.message ? error.message : error)}`);
+          await safeReply(hostApi, event, `群分析失败：${String(error && error.message ? error.message : error)}`);
         }
       },
     });
@@ -126,7 +126,7 @@ export default async function bootstrap(hostApi) {
         hostApi.log("ERROR", "[elymbot-group-analysis] message command failed", {
           message: String(error && error.message ? error.message : error),
         });
-        event.replyText(`群分析失败：${String(error && error.message ? error.message : error)}`);
+        await safeReply(hostApi, event, `群分析失败：${String(error && error.message ? error.message : error)}`);
       }
     },
   });
@@ -150,7 +150,7 @@ export default async function bootstrap(hostApi) {
         hostApi.log("ERROR", "[elymbot-group-analysis] regex command failed", {
           message: String(error && error.message ? error.message : error),
         });
-        event.replyText(`群分析失败：${String(error && error.message ? error.message : error)}`);
+        await safeReply(hostApi, event, `群分析失败：${String(error && error.message ? error.message : error)}`);
       }
     },
   });
@@ -239,14 +239,14 @@ function modeFromAction(action) {
 
 async function handleCommand(hostApi, event, mode) {
   if (mode === "help") {
-    event.replyText(buildHelpText());
+    await safeReply(hostApi, event, buildHelpText());
     return;
   }
 
   const settings = normalizeSettings(hostApi.getSettings ? hostApi.getSettings() : {});
   const history = await loadHistory(hostApi, settings.history_limit);
   if (history.ok === false) {
-    event.replyText(`读取当前会话历史失败：${history.error}`);
+    await safeReply(hostApi, event, `读取当前会话历史失败：${history.error}`);
     return;
   }
 
@@ -257,7 +257,9 @@ async function handleCommand(hostApi, event, mode) {
   });
 
   if (validMessages.length < settings.min_messages) {
-    event.replyText(
+    await safeReply(
+      hostApi,
+      event,
       `当前会话可分析消息不足：有效 ${validMessages.length} 条，至少需要 ${settings.min_messages} 条。`
     );
     return;
@@ -265,26 +267,50 @@ async function handleCommand(hostApi, event, mode) {
 
   const stats = buildStats(validMessages);
   if (mode === "stats") {
-    event.replyText(renderStatsReport(stats, validMessages.length));
+    await safeReply(hostApi, event, renderStatsReport(stats, validMessages.length));
     return;
   }
 
-  event.replyText(`正在分析当前会话最近 ${validMessages.length} 条有效消息...`);
+  await safeReply(hostApi, event, `正在分析当前会话最近 ${validMessages.length} 条有效消息...`);
 
   const model = await resolveModel(hostApi, settings);
   if (model.ok === false) {
-    event.replyText(`无法选择可用模型：${model.error}`);
+    await safeReply(hostApi, event, `无法选择可用模型：${model.error}`);
     return;
   }
 
   const prompt = buildPrompt(mode, validMessages, stats, settings);
   const result = await callLlm(hostApi, model, settings, prompt);
   if (result.ok === false) {
-    event.replyText(`LLM 分析失败：${result.error}`);
+    await safeReply(hostApi, event, `LLM 分析失败：${result.error}`);
     return;
   }
 
-  event.replyText(trimReport(result.text));
+  await safeReply(hostApi, event, trimReport(result.text));
+}
+
+async function safeReply(hostApi, event, text) {
+  const payload = { text: String(text || ""), resultType: "text" };
+  const methodsWithPayload = ["replyResult", "sendResult", "respond", "reply"];
+  const methodsWithText = ["replyText", "sendText", "respondText"];
+
+  for (const name of methodsWithPayload) {
+    if (event && typeof event[name] === "function") {
+      return await event[name](payload);
+    }
+  }
+
+  for (const name of methodsWithText) {
+    if (event && typeof event[name] === "function") {
+      return await event[name](payload.text);
+    }
+  }
+
+  if (hostApi && hostApi.message && typeof hostApi.message.send === "function") {
+    return await hostApi.message.send({ text: payload.text, markdown: false });
+  }
+
+  return payload;
 }
 
 function buildHelpText() {
