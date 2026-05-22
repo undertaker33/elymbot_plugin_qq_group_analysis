@@ -56,13 +56,68 @@ const DEFAULTS = {
 export default async function bootstrap(hostApi) {
   hostApi.log("INFO", "[elymbot-group-analysis] loaded");
 
+  hostApi.registerMessageHandler({
+    key: "elymbot-group-analysis.message-command",
+    priority: 200,
+    filters: {
+      allOf: [{ eventMessageType: "group" }],
+    },
+    metadata: { description: "在命令匹配前拦截 /群分析 指令" },
+    handler: async (event) => {
+      const action = extractCommandAction(event);
+      if (!action) {
+        return;
+      }
+
+      if (event.stopPropagation) {
+        event.stopPropagation();
+      }
+
+      try {
+        await handleCommand(hostApi, event, modeFromAction(action));
+      } catch (error) {
+        hostApi.log("ERROR", "[elymbot-group-analysis] message command failed", {
+          message: String(error && error.message ? error.message : error),
+        });
+        event.replyText(`群分析失败：${String(error && error.message ? error.message : error)}`);
+      }
+    },
+  });
+
+  hostApi.registerCommandHandler({
+    stage: "command",
+    key: "elymbot-group-analysis.root",
+    command: "群分析",
+    aliases: [],
+    groupPath: [],
+    priority: 100,
+    filters: [],
+    metadata: { description: "群分析根命令" },
+    handler: async (event) => {
+      try {
+        const action = extractCommandAction(event) || "帮助";
+        await handleCommand(hostApi, event, modeFromAction(action));
+        if (event.stopPropagation) {
+          event.stopPropagation();
+        }
+      } catch (error) {
+        hostApi.log("ERROR", "[elymbot-group-analysis] root command failed", {
+          message: String(error && error.message ? error.message : error),
+        });
+        event.replyText(`群分析失败：${String(error && error.message ? error.message : error)}`);
+      }
+    },
+  });
+
   for (const item of COMMANDS) {
     hostApi.registerCommandHandler({
+      stage: "command",
       key: item.key,
       command: item.command,
       aliases: [],
       groupPath: ["群分析"],
       priority: 0,
+      filters: [],
       metadata: { description: item.description },
       handler: async (event) => {
         try {
@@ -105,6 +160,30 @@ export default async function bootstrap(hostApi) {
   });
 }
 
+function extractCommandAction(event) {
+  const raw = extractEventText(event).trim();
+  if (!raw) {
+    return "";
+  }
+
+  const normalized = raw.replace(/^\/+/, "").trim();
+  if (normalized === "群分析") {
+    return "帮助";
+  }
+
+  let match = normalized.match(/^群分析[-－](帮助|完整|统计|话题|金句|用户|质量)(?:\s|$)/);
+  if (match) {
+    return match[1];
+  }
+
+  match = normalized.match(/^群分析\s+(帮助|完整|统计|话题|金句|用户|质量)(?:\s|$)/);
+  if (match) {
+    return match[1];
+  }
+
+  return "";
+}
+
 function extractAction(event) {
   const allowed = ["帮助", "完整", "统计", "话题", "金句", "用户", "质量"];
   if (event && Array.isArray(event.groups)) {
@@ -116,7 +195,12 @@ function extractAction(event) {
     }
   }
 
-  const raw = extractText(event || "");
+  const fromCommand = extractCommandAction(event);
+  if (fromCommand) {
+    return fromCommand;
+  }
+
+  const raw = extractEventText(event || "");
   const match = raw.match(/群分析[-－](帮助|完整|统计|话题|金句|用户|质量)/);
   return match ? match[1] : "帮助";
 }
@@ -187,6 +271,7 @@ async function handleCommand(hostApi, event, mode) {
 function buildHelpText() {
   return [
     "群分析指令：",
+    "/群分析：显示本帮助",
     "/群分析-完整：完整分析最近消息",
     "/群分析-统计：只看基础统计",
     "/群分析-话题：分析热门话题",
@@ -197,6 +282,18 @@ function buildHelpText() {
     "",
     "说明：当前版本只分析触发指令所在会话，读取最近最多 100 条历史消息。",
   ].join("\n");
+}
+
+function extractEventText(event) {
+  if (!event || typeof event !== "object") {
+    return "";
+  }
+  for (const key of ["rawText", "workingText", "messageText", "text", "remainingText"]) {
+    if (typeof event[key] === "string" && event[key]) {
+      return event[key];
+    }
+  }
+  return extractText(event);
 }
 
 function normalizeSettings(raw) {
