@@ -27,6 +27,7 @@ album upload, dynamic image rendering, or HTML report file generation.
 
 - `conversation_read`
 - `provider_read`
+- `send_message`
 - `call_model`
 
 ## Files

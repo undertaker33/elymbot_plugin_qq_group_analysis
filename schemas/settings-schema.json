@@ -31,18 +31,6 @@
       "fields": [
         {
           "fieldType": "text_input",
-          "fieldId": "provider_id",
-          "label": "Provider ID",
-          "defaultValue": ""
-        },
-        {
-          "fieldType": "text_input",
-          "fieldId": "model_id",
-          "label": "Model ID",
-          "defaultValue": ""
-        },
-        {
-          "fieldType": "text_input",
           "fieldId": "temperature",
           "label": "Temperature",
           "defaultValue": "0.35"

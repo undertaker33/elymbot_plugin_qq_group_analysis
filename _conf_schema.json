@@ -13,20 +13,6 @@
     "default": 8,
     "section": "analysis"
   },
-  "provider_id": {
-    "type": "string",
-    "description": "LLM provider ID",
-    "hint": "Leave empty to use the first available provider reported by ElymBot.",
-    "default": "",
-    "section": "llm"
-  },
-  "model_id": {
-    "type": "string",
-    "description": "LLM model ID",
-    "hint": "Leave empty to use the first available model for the selected provider.",
-    "default": "",
-    "section": "llm"
-  },
   "temperature": {
     "type": "number",
     "description": "Temperature",

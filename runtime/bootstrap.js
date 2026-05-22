@@ -46,8 +46,6 @@ const COMMANDS = [
 const DEFAULTS = {
   history_limit: 100,
   min_messages: 8,
-  provider_id: "",
-  model_id: "",
   temperature: 0.35,
   max_tokens: 1800,
   tone: "中文，简洁但有梗，避免攻击个人隐私。",
@@ -228,7 +226,7 @@ async function handleCommand(hostApi, event, mode) {
 
   await safeReply(hostApi, event, `正在分析当前会话最近 ${validMessages.length} 条有效消息...`);
 
-  const model = await resolveModel(hostApi, settings);
+  const model = await resolveModel(hostApi, event);
   if (model.ok === false) {
     await safeReply(hostApi, event, `无法选择可用模型：${model.error}`);
     return;
@@ -305,8 +303,6 @@ function normalizeSettings(raw) {
   merged.min_messages = clamp(toInt(merged.min_messages, DEFAULTS.min_messages), 1, 100);
   merged.temperature = clamp(toNumber(merged.temperature, DEFAULTS.temperature), 0, 2);
   merged.max_tokens = clamp(toInt(merged.max_tokens, DEFAULTS.max_tokens), 256, 6000);
-  merged.provider_id = String(merged.provider_id || "").trim();
-  merged.model_id = String(merged.model_id || "").trim();
   merged.tone = String(merged.tone || DEFAULTS.tone).trim();
   return merged;
 }
@@ -332,34 +328,29 @@ async function loadHistory(hostApi, limit) {
   return { ok: true, records };
 }
 
-async function resolveModel(hostApi, settings) {
-  let providerId = settings.provider_id;
-  let modelId = settings.model_id;
-
-  if (providerId && modelId) {
-    return { ok: true, providerId, modelId };
-  }
-
+async function resolveModel(hostApi, event) {
   if (!hostApi.providers || !hostApi.providers.list || !hostApi.providers.models) {
-    return { ok: false, error: "请在插件设置中填写 provider_id 和 model_id" };
+    return { ok: false, error: "宿主未提供 providers API，无法沿用宿主模型链路" };
   }
 
+  const providersResult = await hostApi.providers.list();
+  if (providersResult && providersResult.ok === false) {
+    return { ok: false, error: formatHostError(providersResult) };
+  }
+
+  const providerList = pickArray(providersResult, ["providers", "items", "data"]) || [];
+  const eventProviderId = firstString(event && event.extras, ["providerId", "provider_id"]);
+  const eventModelId = firstString(event && event.extras, ["modelId", "model_id"]);
+  const selectedProvider = eventProviderId
+    ? providerList.find((provider) => providerIdOf(provider) === eventProviderId)
+    : null;
+  const provider = selectedProvider || providerList.find((item) => item && item.enabled !== false) || providerList[0];
+  const providerId = providerIdOf(provider);
   if (!providerId) {
-    const providers = await hostApi.providers.list();
-    if (providers && providers.ok === false) {
-      return { ok: false, error: formatHostError(providers) };
-    }
-    const providerList = pickArray(providers, ["providers", "items", "data"]) || [];
-    const first = providerList[0];
-    providerId = String(
-      (first && (first.providerId || first.id || first.key || first.name)) || ""
-    ).trim();
+    return { ok: false, error: "宿主未返回可用 Provider" };
   }
 
-  if (!providerId) {
-    return { ok: false, error: "没有可用 Provider，请在插件设置中填写 provider_id" };
-  }
-
+  let modelId = eventModelId || firstString(provider, ["defaultModelId", "default_model_id", "modelId", "model_id"]);
   if (!modelId) {
     const models = await hostApi.providers.models({ providerId });
     if (models && models.ok === false) {
@@ -371,10 +362,14 @@ async function resolveModel(hostApi, settings) {
   }
 
   if (!modelId) {
-    return { ok: false, error: "没有可用 Model，请在插件设置中填写 model_id" };
+    return { ok: false, error: "宿主未返回可用 Model" };
   }
 
   return { ok: true, providerId, modelId };
+}
+
+function providerIdOf(provider) {
+  return firstString(provider, ["providerId", "provider_id", "id", "key", "name"]);
 }
 
 async function callLlm(hostApi, model, settings, prompt) {
