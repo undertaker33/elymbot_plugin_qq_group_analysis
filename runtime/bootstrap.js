@@ -60,11 +60,14 @@ export default async function bootstrap(hostApi) {
     stage: "command",
     key: "elymbot-group-analysis.root",
     command: "群分析",
-    aliases: [],
+    aliases: COMMANDS.map((item) => item.command),
     groupPath: [],
     priority: 100,
     filters: [],
-    metadata: { description: "群分析根命令" },
+    metadata: {
+      description: "群分析根命令",
+      commandGroup: "群分析",
+    },
     handler: async (event) => {
       try {
         const action = extractCommandAction(event) || "帮助";
@@ -74,89 +77,6 @@ export default async function bootstrap(hostApi) {
         }
       } catch (error) {
         hostApi.log("ERROR", "[elymbot-group-analysis] root command failed", {
-          message: String(error && error.message ? error.message : error),
-        });
-        await safeReply(hostApi, event, `群分析失败：${String(error && error.message ? error.message : error)}`);
-      }
-    },
-  });
-
-  for (const item of COMMANDS) {
-    register(hostApi, "registerCommandHandler", {
-      stage: "command",
-      key: item.key,
-      command: item.command,
-      aliases: [],
-      groupPath: ["群分析"],
-      priority: 0,
-      filters: [],
-      metadata: { description: item.description },
-      handler: async (event) => {
-        try {
-          await handleCommand(hostApi, event, item.mode);
-        } catch (error) {
-          hostApi.log("ERROR", "[elymbot-group-analysis] command failed", {
-            command: item.command,
-            message: String(error && error.message ? error.message : error),
-          });
-          await safeReply(hostApi, event, `群分析失败：${String(error && error.message ? error.message : error)}`);
-        }
-      },
-    });
-  }
-
-  register(hostApi, "registerMessageHandler", {
-    key: "elymbot-group-analysis.message-command",
-    priority: 200,
-    filters: [],
-    metadata: { description: "在命令匹配前拦截 /群分析 指令" },
-    handler: async (event) => {
-      const action = extractCommandAction(event);
-      if (!action) {
-        const raw = extractEventText(event);
-        if (raw.indexOf("群分析") >= 0) {
-          hostApi.log("INFO", "[elymbot-group-analysis] command text not matched", {
-            rawText: raw.slice(0, 120),
-          });
-        }
-        return;
-      }
-
-      if (event.stopPropagation) {
-        event.stopPropagation();
-      }
-
-      try {
-        hostApi.log("INFO", "[elymbot-group-analysis] message command matched", {
-          action,
-        });
-        await handleCommand(hostApi, event, modeFromAction(action));
-      } catch (error) {
-        hostApi.log("ERROR", "[elymbot-group-analysis] message command failed", {
-          message: String(error && error.message ? error.message : error),
-        });
-        await safeReply(hostApi, event, `群分析失败：${String(error && error.message ? error.message : error)}`);
-      }
-    },
-  });
-
-  register(hostApi, "registerRegexHandler", {
-    key: "elymbot-group-analysis.slash-fallback",
-    pattern: "^\\s*/?群分析[-－](帮助|完整|统计|话题|金句|用户|质量)(?:\\s|$)",
-    flags: ["i"],
-    filters: [],
-    priority: 100,
-    metadata: { description: "匹配 /群分析-xx 功能指令" },
-    handler: async (event) => {
-      try {
-        const action = extractAction(event);
-        const mode = modeFromAction(action);
-        await handleCommand(hostApi, event, mode);
-        if (event.stopPropagation) {
-          event.stopPropagation();
-        }
-      } catch (error) {
-        hostApi.log("ERROR", "[elymbot-group-analysis] regex command failed", {
           message: String(error && error.message ? error.message : error),
         });
         await safeReply(hostApi, event, `群分析失败：${String(error && error.message ? error.message : error)}`);
@@ -189,7 +109,49 @@ function register(hostApi, methodName, descriptor) {
 }
 
 function extractCommandAction(event) {
+  if (event && Array.isArray(event.commandPath) && event.commandPath.indexOf("群分析") >= 0) {
+    const action = Array.isArray(event.args) && event.args.length ? String(event.args[0]).trim() : "";
+    if (action) {
+      return action;
+    }
+    const aliasAction = extractActionFromText(event.matchedAlias || "");
+    if (aliasAction) {
+      return aliasAction;
+    }
+    return "帮助";
+  }
+
   const raw = extractEventText(event).trim();
+  if (!raw) {
+    return "";
+  }
+
+  return extractActionFromText(raw);
+}
+
+function extractAction(event) {
+  const allowed = ["帮助", "完整", "统计", "话题", "金句", "用户", "质量"];
+  if (event && Array.isArray(event.groups)) {
+    for (const group of event.groups) {
+      const value = String(group || "").trim();
+      if (allowed.indexOf(value) >= 0) {
+        return value;
+      }
+    }
+  }
+
+  const fromCommand = extractCommandAction(event);
+  if (fromCommand) {
+    return fromCommand;
+  }
+
+  const raw = extractEventText(event || "");
+  const match = raw.match(/群分析[-－](帮助|完整|统计|话题|金句|用户|质量)/);
+  return match ? match[1] : "帮助";
+}
+
+function extractActionFromText(text) {
+  const raw = String(text || "").trim();
   if (!raw) {
     return "";
   }
@@ -214,33 +176,7 @@ function extractCommandAction(event) {
     return match[1] || "帮助";
   }
 
-  if (event && Array.isArray(event.commandPath) && event.commandPath.indexOf("群分析") >= 0) {
-    const action = Array.isArray(event.args) && event.args.length ? String(event.args[0]).trim() : "";
-    return action || "帮助";
-  }
-
   return "";
-}
-
-function extractAction(event) {
-  const allowed = ["帮助", "完整", "统计", "话题", "金句", "用户", "质量"];
-  if (event && Array.isArray(event.groups)) {
-    for (const group of event.groups) {
-      const value = String(group || "").trim();
-      if (allowed.indexOf(value) >= 0) {
-        return value;
-      }
-    }
-  }
-
-  const fromCommand = extractCommandAction(event);
-  if (fromCommand) {
-    return fromCommand;
-  }
-
-  const raw = extractEventText(event || "");
-  const match = raw.match(/群分析[-－](帮助|完整|统计|话题|金句|用户|质量)/);
-  return match ? match[1] : "帮助";
 }
 
 function modeFromAction(action) {
