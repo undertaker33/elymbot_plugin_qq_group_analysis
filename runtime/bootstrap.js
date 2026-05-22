@@ -113,6 +113,12 @@ export default async function bootstrap(hostApi) {
     handler: async (event) => {
       const action = extractCommandAction(event);
       if (!action) {
+        const raw = extractEventText(event);
+        if (raw.indexOf("群分析") >= 0) {
+          hostApi.log("INFO", "[elymbot-group-analysis] command text not matched", {
+            rawText: raw.slice(0, 120),
+          });
+        }
         return;
       }
 
@@ -121,6 +127,9 @@ export default async function bootstrap(hostApi) {
       }
 
       try {
+        hostApi.log("INFO", "[elymbot-group-analysis] message command matched", {
+          action,
+        });
         await handleCommand(hostApi, event, modeFromAction(action));
       } catch (error) {
         hostApi.log("ERROR", "[elymbot-group-analysis] message command failed", {
@@ -198,6 +207,16 @@ function extractCommandAction(event) {
   match = normalized.match(/^群分析\s+(帮助|完整|统计|话题|金句|用户|质量)(?:\s|$)/);
   if (match) {
     return match[1];
+  }
+
+  match = raw.match(/(?:^|[\s\]])\/?群分析(?:[-－\s]+(帮助|完整|统计|话题|金句|用户|质量))?(?=$|\s)/);
+  if (match) {
+    return match[1] || "帮助";
+  }
+
+  if (event && Array.isArray(event.commandPath) && event.commandPath.indexOf("群分析") >= 0) {
+    const action = Array.isArray(event.args) && event.args.length ? String(event.args[0]).trim() : "";
+    return action || "帮助";
   }
 
   return "";
