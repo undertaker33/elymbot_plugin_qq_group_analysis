@@ -77,6 +77,61 @@ export default async function bootstrap(hostApi) {
       },
     });
   }
+
+  hostApi.registerRegexHandler({
+    key: "elymbot-group-analysis.slash-fallback",
+    pattern: "^\\s*/?群分析[-－](帮助|完整|统计|话题|金句|用户|质量)(?:\\s|$)",
+    flags: ["i"],
+    filters: {
+      allOf: [{ eventMessageType: "group" }],
+    },
+    priority: 100,
+    metadata: { description: "匹配 /群分析-xx 功能指令" },
+    handler: async (event) => {
+      try {
+        const action = extractAction(event);
+        const mode = modeFromAction(action);
+        await handleCommand(hostApi, event, mode);
+        if (event.stopPropagation) {
+          event.stopPropagation();
+        }
+      } catch (error) {
+        hostApi.log("ERROR", "[elymbot-group-analysis] regex command failed", {
+          message: String(error && error.message ? error.message : error),
+        });
+        event.replyText(`群分析失败：${String(error && error.message ? error.message : error)}`);
+      }
+    },
+  });
+}
+
+function extractAction(event) {
+  const allowed = ["帮助", "完整", "统计", "话题", "金句", "用户", "质量"];
+  if (event && Array.isArray(event.groups)) {
+    for (const group of event.groups) {
+      const value = String(group || "").trim();
+      if (allowed.indexOf(value) >= 0) {
+        return value;
+      }
+    }
+  }
+
+  const raw = extractText(event || "");
+  const match = raw.match(/群分析[-－](帮助|完整|统计|话题|金句|用户|质量)/);
+  return match ? match[1] : "帮助";
+}
+
+function modeFromAction(action) {
+  const map = {
+    "帮助": "help",
+    "完整": "full",
+    "统计": "stats",
+    "话题": "topics",
+    "金句": "quotes",
+    "用户": "users",
+    "质量": "quality",
+  };
+  return map[action] || "help";
 }
 
 async function handleCommand(hostApi, event, mode) {
