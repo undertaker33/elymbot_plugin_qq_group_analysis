@@ -56,35 +56,7 @@ const DEFAULTS = {
 export default async function bootstrap(hostApi) {
   hostApi.log("INFO", "[elymbot-group-analysis] loaded");
 
-  hostApi.registerMessageHandler({
-    key: "elymbot-group-analysis.message-command",
-    priority: 200,
-    filters: {
-      allOf: [{ eventMessageType: "group" }],
-    },
-    metadata: { description: "在命令匹配前拦截 /群分析 指令" },
-    handler: async (event) => {
-      const action = extractCommandAction(event);
-      if (!action) {
-        return;
-      }
-
-      if (event.stopPropagation) {
-        event.stopPropagation();
-      }
-
-      try {
-        await handleCommand(hostApi, event, modeFromAction(action));
-      } catch (error) {
-        hostApi.log("ERROR", "[elymbot-group-analysis] message command failed", {
-          message: String(error && error.message ? error.message : error),
-        });
-        event.replyText(`群分析失败：${String(error && error.message ? error.message : error)}`);
-      }
-    },
-  });
-
-  hostApi.registerCommandHandler({
+  register(hostApi, "registerCommandHandler", {
     stage: "command",
     key: "elymbot-group-analysis.root",
     command: "群分析",
@@ -110,7 +82,7 @@ export default async function bootstrap(hostApi) {
   });
 
   for (const item of COMMANDS) {
-    hostApi.registerCommandHandler({
+    register(hostApi, "registerCommandHandler", {
       stage: "command",
       key: item.key,
       command: item.command,
@@ -133,13 +105,37 @@ export default async function bootstrap(hostApi) {
     });
   }
 
-  hostApi.registerRegexHandler({
+  register(hostApi, "registerMessageHandler", {
+    key: "elymbot-group-analysis.message-command",
+    priority: 200,
+    filters: [],
+    metadata: { description: "在命令匹配前拦截 /群分析 指令" },
+    handler: async (event) => {
+      const action = extractCommandAction(event);
+      if (!action) {
+        return;
+      }
+
+      if (event.stopPropagation) {
+        event.stopPropagation();
+      }
+
+      try {
+        await handleCommand(hostApi, event, modeFromAction(action));
+      } catch (error) {
+        hostApi.log("ERROR", "[elymbot-group-analysis] message command failed", {
+          message: String(error && error.message ? error.message : error),
+        });
+        event.replyText(`群分析失败：${String(error && error.message ? error.message : error)}`);
+      }
+    },
+  });
+
+  register(hostApi, "registerRegexHandler", {
     key: "elymbot-group-analysis.slash-fallback",
     pattern: "^\\s*/?群分析[-－](帮助|完整|统计|话题|金句|用户|质量)(?:\\s|$)",
     flags: ["i"],
-    filters: {
-      allOf: [{ eventMessageType: "group" }],
-    },
+    filters: [],
     priority: 100,
     metadata: { description: "匹配 /群分析-xx 功能指令" },
     handler: async (event) => {
@@ -158,6 +154,29 @@ export default async function bootstrap(hostApi) {
       }
     },
   });
+}
+
+function register(hostApi, methodName, descriptor) {
+  if (!hostApi || typeof hostApi[methodName] !== "function") {
+    if (hostApi && typeof hostApi.log === "function") {
+      hostApi.log("WARN", `[elymbot-group-analysis] ${methodName} unavailable`, {
+        key: descriptor && descriptor.key ? descriptor.key : "",
+      });
+    }
+    return null;
+  }
+
+  try {
+    return hostApi[methodName](descriptor);
+  } catch (error) {
+    if (hostApi && typeof hostApi.log === "function") {
+      hostApi.log("ERROR", `[elymbot-group-analysis] ${methodName} failed`, {
+        key: descriptor && descriptor.key ? descriptor.key : "",
+        message: String(error && error.message ? error.message : error),
+      });
+    }
+    return null;
+  }
 }
 
 function extractCommandAction(event) {
