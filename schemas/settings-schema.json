@@ -1,0 +1,59 @@
+{
+  "title": "群分析设置",
+  "sections": [
+    {
+      "sectionId": "analysis",
+      "title": "分析",
+      "fields": [
+        {
+          "fieldType": "text_input",
+          "fieldId": "history_limit",
+          "label": "读取消息数",
+          "defaultValue": "100"
+        },
+        {
+          "fieldType": "text_input",
+          "fieldId": "min_messages",
+          "label": "最少有效消息",
+          "defaultValue": "8"
+        },
+        {
+          "fieldType": "text_input",
+          "fieldId": "tone",
+          "label": "报告风格",
+          "defaultValue": "中文，简洁但有梗，避免攻击个人隐私。"
+        }
+      ]
+    },
+    {
+      "sectionId": "llm",
+      "title": "模型",
+      "fields": [
+        {
+          "fieldType": "text_input",
+          "fieldId": "provider_id",
+          "label": "Provider ID",
+          "defaultValue": ""
+        },
+        {
+          "fieldType": "text_input",
+          "fieldId": "model_id",
+          "label": "Model ID",
+          "defaultValue": ""
+        },
+        {
+          "fieldType": "text_input",
+          "fieldId": "temperature",
+          "label": "Temperature",
+          "defaultValue": "0.35"
+        },
+        {
+          "fieldType": "text_input",
+          "fieldId": "max_tokens",
+          "label": "Max Tokens",
+          "defaultValue": "1800"
+        }
+      ]
+    }
+  ]
+}

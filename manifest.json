@@ -1,0 +1,36 @@
+{
+  "pluginId": "io.github.untarz.qq_group_analysis",
+  "version": "0.1.0",
+  "protocolVersion": 2,
+  "author": "untarz",
+  "title": "QQ群聊消息分析",
+  "description": "手动触发的当前群聊消息分析插件，读取当前会话最近消息并生成统计、话题、金句、用户风格和聊天质量报告。",
+  "permissions": [
+    {
+      "permissionId": "conversation_read",
+      "title": "Read current conversation history",
+      "description": "Allows the plugin to read recent messages from the current conversation for manual analysis.",
+      "riskLevel": "MEDIUM",
+      "required": true
+    },
+    {
+      "permissionId": "provider_read",
+      "title": "Read available LLM providers",
+      "description": "Allows the plugin to select a configured provider and model when settings are not specified.",
+      "riskLevel": "LOW",
+      "required": true
+    },
+    {
+      "permissionId": "call_model",
+      "title": "Call LLM",
+      "description": "Allows the plugin to call the configured LLM to generate analysis reports.",
+      "riskLevel": "MEDIUM",
+      "required": true
+    }
+  ],
+  "minHostVersion": "0.4.0",
+  "maxHostVersion": "",
+  "sourceType": "LOCAL_FILE",
+  "entrySummary": "在当前群使用 /群分析-帮助，基于最近最多 100 条消息生成群聊分析。",
+  "riskLevel": "MEDIUM"
+}

@@ -1,0 +1,51 @@
+{
+  "history_limit": {
+    "type": "number",
+    "description": "History message limit",
+    "hint": "ElymBot conversation history is capped by the host; 100 is the current documented maximum.",
+    "default": 100,
+    "section": "analysis"
+  },
+  "min_messages": {
+    "type": "number",
+    "description": "Minimum messages",
+    "hint": "The plugin will refuse to call the model when fewer valid messages are available.",
+    "default": 8,
+    "section": "analysis"
+  },
+  "provider_id": {
+    "type": "string",
+    "description": "LLM provider ID",
+    "hint": "Leave empty to use the first available provider reported by ElymBot.",
+    "default": "",
+    "section": "llm"
+  },
+  "model_id": {
+    "type": "string",
+    "description": "LLM model ID",
+    "hint": "Leave empty to use the first available model for the selected provider.",
+    "default": "",
+    "section": "llm"
+  },
+  "temperature": {
+    "type": "number",
+    "description": "Temperature",
+    "hint": "Lower values produce steadier reports.",
+    "default": 0.35,
+    "section": "llm"
+  },
+  "max_tokens": {
+    "type": "number",
+    "description": "Max output tokens",
+    "hint": "Raise this if the report is truncated.",
+    "default": 1800,
+    "section": "llm"
+  },
+  "tone": {
+    "type": "string",
+    "description": "Report tone",
+    "hint": "Controls the style of the LLM analysis.",
+    "default": "中文，简洁但有梗，避免攻击个人隐私。",
+    "section": "analysis"
+  }
+}
