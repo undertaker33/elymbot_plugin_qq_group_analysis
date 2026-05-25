@@ -4,6 +4,8 @@
 
 Manual current-conversation group analysis plugin for ElymBot Plugin v2.
 
+Requires ElymBot host v1.1.1 or newer.
+
 ## Commands
 
 - `/群分析-帮助`: show command list

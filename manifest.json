@@ -35,7 +35,7 @@
       "required": true
     }
   ],
-  "minHostVersion": "0.4.0",
+  "minHostVersion": "1.1.1",
   "maxHostVersion": "",
   "sourceType": "LOCAL_FILE",
   "entrySummary": "在当前群使用 /群分析-帮助，基于最近最多 100 条消息生成群聊分析。",
